@@ -11,14 +11,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <sys/time.h>
+
 struct timer_data
 {
 	XtAppContext app;
 	XtIntervalId id;
-	/*TODO: Replace this with a "due time" (at subsecond resolution),
-	    so we don't have timer drift error
-	*/
-	int timeleft;
+	struct timeval due;
 	Widget out;	/*The label we're displaying the current time in*/
 };
 
@@ -26,12 +25,22 @@ static void tick(XtPointer client_data, XtIntervalId *id)
 {
 	struct timer_data *td=client_data;
 	Arg a;
+	struct timeval now;
+	struct timeval left;
 
-	assert(td->timeleft > 0);
 	assert(td->id == *id);
-	td->timeleft--;
 
-	if(td->timeleft == 0)
+	gettimeofday(&now, NULL);
+	left=td->due;
+	left.tv_sec -= now.tv_sec;
+	left.tv_usec -= now.tv_usec;
+	if(left.tv_usec < 0)
+	{
+		left.tv_usec += 1000000;
+		left.tv_sec -= 1;
+	}
+
+	if(left.tv_sec < 0)
 	{
 		/*Timer is done*/
 		Widget p = XtParent(td->out);
@@ -42,14 +51,19 @@ static void tick(XtPointer client_data, XtIntervalId *id)
 
 	else
 	{
-		/*Timer is still going*/
-		int min=td->timeleft/60;
-		int sec=td->timeleft%60;
+		int min,sec;	/*For display*/
+		int msec;	/*for Xt timer*/
 		char fmtbuf[16];
+		/*Timer is still going*/
+		if(left.tv_usec > 0)
+			left.tv_sec+=1;	/*ceil*/
+		min=left.tv_sec/60;
+		sec=left.tv_sec%60;
 		sprintf(fmtbuf, "%d:%02d", min, sec);
 		XtSetArg(a, XtNlabel, fmtbuf);
 		XtSetValues(td->out, &a, 1);
-		td->id=XtAppAddTimeOut(td->app, 1000, tick, td);
+		msec=left.tv_usec/1000;
+		td->id=XtAppAddTimeOut(td->app, msec, tick, td);
 	}
 }
 
@@ -64,7 +78,8 @@ static void start_proc(Widget w, XtPointer client_data, XtPointer call_data)
 	(void)w;
 	(void)call_data;
 
-	td->timeleft=time;
+	gettimeofday(&td->due, NULL);
+	td->due.tv_sec += time;
 	XtSetSensitive(p, False);
 	td->id=XtAppAddTimeOut(td->app, 0, tick, td);
 }
@@ -97,7 +112,6 @@ Widget create_timer(Widget parent)
 	start=XtCreateManagedWidget("timer_start", commandWidgetClass, box, args, nargs);
 	td.app=app;
 	td.id=0;
-	td.timeleft=0;
 	td.out=clock;
 	XtAddCallback(start, XtNcallback, start_proc, &td);
 
