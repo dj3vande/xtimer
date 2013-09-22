@@ -226,9 +226,9 @@ int main(int argc, char **argv)
 	Arg args[10];
 	int nargs;
 
-	int times[4]={30,60,90,120};
-	char *labels[4]={"Half minute", "Minute", "Minute and a half", "Two minutes"};
-	int num_buttons=4;
+	int times[5]={5,30,60,90,120};
+	char *labels[5]={"Five seconds", "Half minute", "Minute", "Minute and a half", "Two minutes"};
+	int num_buttons=5;
 
 	nargs=0;
 	XtSetArg(args[nargs], "title", "XTimer");  nargs++;
