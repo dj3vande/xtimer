@@ -21,7 +21,7 @@ struct timer_data
 	/*Clock data*/
 	int running;
 	Widget clock_label;
-	XtIntervalId id;
+	XtIntervalId timer_id;
 	struct timeval due;
 	int label_width;	/*Because we don't want it to auto-resize*/
 
@@ -41,7 +41,7 @@ static void tick(XtPointer client_data, XtIntervalId *id)
 	struct timeval left;
 
 	assert(td->running);
-	assert(td->id == *id);
+	assert(td->timer_id == *id);
 
 	gettimeofday(&now, NULL);
 	left=td->due;
@@ -87,7 +87,7 @@ static void tick(XtPointer client_data, XtIntervalId *id)
 		XtSetArg(args[1], XtNwidth, td->label_width);
 		XtSetValues(td->clock_label, args, 2);
 		msec=left.tv_usec/1000;
-		td->id=XtAppAddTimeOut(td->app, msec, tick, td);
+		td->timer_id=XtAppAddTimeOut(td->app, msec, tick, td);
 	}
 }
 
@@ -117,10 +117,21 @@ static void start_proc(Widget w, XtPointer client_data, XtPointer call_data)
 	td->due.tv_sec += time;
 	for(i=0; i<td->num_buttons; i++)
 		XtSetSensitive(td->button_widgets[i], False);
-	td->id=XtAppAddTimeOut(td->app, 0, tick, td);
+	td->timer_id=XtAppAddTimeOut(td->app, 0, tick, td);
 	td->running=1;
 }
 
+void destroy_timerdata(Widget w, XtPointer client_data, XtPointer call_data)
+{
+	struct timer_data *td=client_data;
+	(void)w;
+	(void)call_data;
+
+	if(td->running)
+		XtRemoveTimeOut(td->timer_id);
+	XtFree((void *)td->button_widgets);
+	XtFree((void *)td->button_times);
+}
 
 /*TODO: This probably needs to be parameterized for one-click times*/
 Widget create_timer(Widget parent, int num_buttons, char **button_labels, int *button_times)
@@ -177,6 +188,8 @@ Widget create_timer(Widget parent, int num_buttons, char **button_labels, int *b
 	for(i=0; i<td->num_buttons; i++)
 		XtSetValues(td->button_widgets[i], args, 1);
 	td->label_width=maxwidth;
+
+	XtAddCallback(box, XtNdestroyCallback, destroy_timerdata, td);
 
 	return box;
 }
