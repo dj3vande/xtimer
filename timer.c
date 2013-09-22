@@ -23,6 +23,7 @@ struct timer_data
 	Widget clock_label;
 	XtIntervalId id;
 	struct timeval due;
+	int label_width;	/*Because we don't want it to auto-resize*/
 
 	/*One-click start buttons*/
 	int num_buttons;
@@ -35,7 +36,7 @@ struct timer_data
 static void tick(XtPointer client_data, XtIntervalId *id)
 {
 	struct timer_data *td=client_data;
-	Arg a;
+	Arg args[2];
 	struct timeval now;
 	struct timeval left;
 
@@ -64,8 +65,9 @@ static void tick(XtPointer client_data, XtIntervalId *id)
 			XtSetSensitive(td->button_widgets[i], True);
 
 		/*Reset the display clock*/
-		XtSetArg(a, XtNlabel, "0:00");
-		XtSetValues(td->clock_label, &a, 1);
+		XtSetArg(args[0], XtNlabel, "0:00");
+		XtSetArg(args[1], XtNwidth, td->label_width);
+		XtSetValues(td->clock_label, args, 2);
 
 		td->running=0;
 	}
@@ -81,8 +83,9 @@ static void tick(XtPointer client_data, XtIntervalId *id)
 		min=left.tv_sec/60;
 		sec=left.tv_sec%60;
 		sprintf(fmtbuf, "%d:%02d", min, sec);
-		XtSetArg(a, XtNlabel, fmtbuf);
-		XtSetValues(td->clock_label, &a, 1);
+		XtSetArg(args[0], XtNlabel, fmtbuf);
+		XtSetArg(args[1], XtNwidth, td->label_width);
+		XtSetValues(td->clock_label, args, 2);
 		msec=left.tv_usec/1000;
 		td->id=XtAppAddTimeOut(td->app, msec, tick, td);
 	}
@@ -124,6 +127,8 @@ Widget create_timer(Widget parent, int num_buttons, char **button_labels, int *b
 {
 	Arg args[10];
 	int nargs;
+	int width, maxwidth;
+	int i;
 
 	XtAppContext app=XtWidgetToApplicationContext(parent);
 	Widget box;
@@ -152,6 +157,26 @@ Widget create_timer(Widget parent, int num_buttons, char **button_labels, int *b
 		td->button_times[td->num_buttons]=button_times[td->num_buttons];
 		XtAddCallback(td->button_widgets[td->num_buttons], XtNcallback, start_proc, td);
 	}
+
+	/*Now go through and make everything the same width*/
+	nargs=0;
+	XtSetArg(args[nargs], "width", &width);  nargs++;
+	XtGetValues(td->clock_label, args, 1);
+	maxwidth=width;
+	for(i=0; i<td->num_buttons; i++)
+	{
+		nargs=0;
+		XtSetArg(args[nargs], "width", &width);  nargs++;
+		XtGetValues(td->button_widgets[i], args, 1);
+		if(maxwidth < width)
+			maxwidth=width;
+	}
+	nargs=0;
+	XtSetArg(args[nargs], "width", maxwidth);  nargs++;
+	XtSetValues(td->clock_label, args, 1);
+	for(i=0; i<td->num_buttons; i++)
+		XtSetValues(td->button_widgets[i], args, 1);
+	td->label_width=maxwidth;
 
 	return box;
 }
