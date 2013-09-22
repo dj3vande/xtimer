@@ -15,10 +15,21 @@
 
 struct timer_data
 {
+	/*General data*/
 	XtAppContext app;
+
+	/*Clock data*/
+	int running;
+	Widget clock_label;
 	XtIntervalId id;
 	struct timeval due;
-	Widget out;	/*The label we're displaying the current time in*/
+
+	/*One-click start buttons*/
+	int num_buttons;
+	Widget *button_widgets;
+	int *button_times;
+
+	/*TODO: User-input start button*/
 };
 
 static void tick(XtPointer client_data, XtIntervalId *id)
@@ -28,6 +39,7 @@ static void tick(XtPointer client_data, XtIntervalId *id)
 	struct timeval now;
 	struct timeval left;
 
+	assert(td->running);
 	assert(td->id == *id);
 
 	gettimeofday(&now, NULL);
@@ -43,10 +55,19 @@ static void tick(XtPointer client_data, XtIntervalId *id)
 	if(left.tv_sec < 0)
 	{
 		/*Timer is done*/
-		Widget p = XtParent(td->out);
+		int i;
+
+		/*TODO: Audible alert*/
+
+		/*Re-sensitize the start buttons*/
+		for(i=0; i<td->num_buttons; i++)
+			XtSetSensitive(td->button_widgets[i], True);
+
+		/*Reset the display clock*/
 		XtSetArg(a, XtNlabel, "0:00");
-		XtSetValues(td->out, &a, 1);
-		XtSetSensitive(p, True);
+		XtSetValues(td->clock_label, &a, 1);
+
+		td->running=0;
 	}
 
 	else
@@ -61,7 +82,7 @@ static void tick(XtPointer client_data, XtIntervalId *id)
 		sec=left.tv_sec%60;
 		sprintf(fmtbuf, "%d:%02d", min, sec);
 		XtSetArg(a, XtNlabel, fmtbuf);
-		XtSetValues(td->out, &a, 1);
+		XtSetValues(td->clock_label, &a, 1);
 		msec=left.tv_usec/1000;
 		td->id=XtAppAddTimeOut(td->app, msec, tick, td);
 	}
@@ -73,31 +94,47 @@ static void tick(XtPointer client_data, XtIntervalId *id)
 static void start_proc(Widget w, XtPointer client_data, XtPointer call_data)
 {
 	struct timer_data *td=client_data;
-	Widget p=XtParent(td->out);
-	int time=90;
+	int i;
+	int time=0;
+
 	(void)w;
 	(void)call_data;
 
+	for(i=0; i<td->num_buttons; i++)
+	{
+		if(td->button_widgets[i] == w)
+		{
+			time=td->button_times[i];
+			break;
+		}
+	}
+	assert(time > 0);
+
 	gettimeofday(&td->due, NULL);
 	td->due.tv_sec += time;
-	XtSetSensitive(p, False);
+	for(i=0; i<td->num_buttons; i++)
+		XtSetSensitive(td->button_widgets[i], False);
 	td->id=XtAppAddTimeOut(td->app, 0, tick, td);
+	td->running=1;
 }
 
 
-/*TODO: Make this not static*/
-static struct timer_data td;
-
 /*TODO: This probably needs to be parameterized for one-click times*/
-Widget create_timer(Widget parent)
+Widget create_timer(Widget parent, int num_buttons, char **button_labels, int *button_times)
 {
 	Arg args[10];
 	int nargs;
 
 	XtAppContext app=XtWidgetToApplicationContext(parent);
 	Widget box;
-	Widget clock;
-	Widget start;
+
+	struct timer_data *td;
+
+	td=(void *)XtMalloc(sizeof *td);
+	td->button_widgets=(void *)XtMalloc(num_buttons * sizeof *td->button_widgets);
+	td->button_times=(void *)XtMalloc(num_buttons * sizeof *td->button_times);
+	td->app=app;
+	td->running=0;
 
 	nargs=0;
 	XtSetArg(args[nargs], "orientation", XtorientVertical); nargs++;
@@ -105,15 +142,16 @@ Widget create_timer(Widget parent)
 
 	nargs=0;
 	XtSetArg(args[nargs], "label", "0:00"); nargs++;
-	clock=XtCreateManagedWidget("timer_clock", labelWidgetClass, box, args, nargs);
+	td->clock_label=XtCreateManagedWidget("timer_clock", labelWidgetClass, box, args, nargs);
 
-	nargs=0;
-	XtSetArg(args[nargs], "label", "Start"); nargs++;
-	start=XtCreateManagedWidget("timer_start", commandWidgetClass, box, args, nargs);
-	td.app=app;
-	td.id=0;
-	td.out=clock;
-	XtAddCallback(start, XtNcallback, start_proc, &td);
+	for(td->num_buttons=0; td->num_buttons<num_buttons; td->num_buttons++)
+	{
+		nargs=0;
+		XtSetArg(args[nargs], "label", button_labels[td->num_buttons]); nargs++;
+		td->button_widgets[td->num_buttons]=XtCreateManagedWidget("timer_start", commandWidgetClass, box, args, nargs);
+		td->button_times[td->num_buttons]=button_times[td->num_buttons];
+		XtAddCallback(td->button_widgets[td->num_buttons], XtNcallback, start_proc, td);
+	}
 
 	return box;
 }
@@ -150,6 +188,9 @@ int main(int argc, char **argv)
 	Arg args[10];
 	int nargs;
 
+	int timer_time=60;
+	char *timer_label="Minute";
+
 	nargs=0;
 	XtSetArg(args[nargs], "title", "XTimer");  nargs++;
 	top=XtOpenApplication(&app, "XTimer", NULL, 0, &argc, argv, fallback, applicationShellWidgetClass, args, nargs);
@@ -158,7 +199,7 @@ int main(int argc, char **argv)
 	XtSetArg(args[nargs], "orientation", XtorientVertical);  nargs++;
 	container=XtCreateManagedWidget("outerbox", boxWidgetClass, top, args, nargs);
 
-	timer=create_timer(container);
+	timer=create_timer(container, 1, &timer_label, &timer_time);
 	quit=XtCreateManagedWidget("quit_button", commandWidgetClass, container, NULL, 0);
 	XtAddCallback(quit, XtNcallback, quit_proc, &app);
 
