@@ -58,7 +58,11 @@ static void tick(XtPointer client_data, XtIntervalId *id)
 		/*Timer is done*/
 		int i;
 
-		/*TODO: Audible alert*/
+		/*Alert the user*/
+		/*TODO: Something that's a little bit harder to
+		    miss might be good.
+		*/
+		XBell(XtDisplay(td->clock_label), 100);
 
 		/*Re-sensitize the start buttons*/
 		for(i=0; i<td->num_buttons; i++)
