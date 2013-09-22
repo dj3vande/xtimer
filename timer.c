@@ -95,9 +95,6 @@ static void tick(XtPointer client_data, XtIntervalId *id)
 	}
 }
 
-/*TODO: Make this general enough to support "this much time" buttons, and
-    a user-settable time field
-*/
 static void start_proc(Widget w, XtPointer client_data, XtPointer call_data)
 {
 	struct timer_data *td=client_data;
@@ -107,6 +104,9 @@ static void start_proc(Widget w, XtPointer client_data, XtPointer call_data)
 	(void)w;
 	(void)call_data;
 
+	/*TODO: Deal with a user-entered time, once the widgets for that
+	    are added.
+	*/
 	for(i=0; i<td->num_buttons; i++)
 	{
 		if(td->button_widgets[i] == w)
@@ -137,7 +137,7 @@ void destroy_timerdata(Widget w, XtPointer client_data, XtPointer call_data)
 	XtFree((void *)td->button_times);
 }
 
-/*TODO: This probably needs to be parameterized for one-click times*/
+
 Widget create_timer(Widget parent, int num_buttons, char **button_labels, int *button_times)
 {
 	Arg args[10];
