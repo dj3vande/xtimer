@@ -213,8 +213,9 @@ int main(int argc, char **argv)
 	Arg args[10];
 	int nargs;
 
-	int timer_time=60;
-	char *timer_label="Minute";
+	int times[4]={30,60,90,120};
+	char *labels[4]={"Half minute", "Minute", "Minute and a half", "Two minutes"};
+	int num_buttons=4;
 
 	nargs=0;
 	XtSetArg(args[nargs], "title", "XTimer");  nargs++;
@@ -224,7 +225,7 @@ int main(int argc, char **argv)
 	XtSetArg(args[nargs], "orientation", XtorientVertical);  nargs++;
 	container=XtCreateManagedWidget("outerbox", boxWidgetClass, top, args, nargs);
 
-	timer=create_timer(container, 1, &timer_label, &timer_time);
+	timer=create_timer(container, num_buttons, labels, times);
 	quit=XtCreateManagedWidget("quit_button", commandWidgetClass, container, NULL, 0);
 	XtAddCallback(quit, XtNcallback, quit_proc, &app);
 
